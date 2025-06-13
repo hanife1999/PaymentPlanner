@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ödeme Yöntemi Hesaplayıcı - Akıllı Ödeme Planlayıcı</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    select {
+      background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%239ca3af' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+      background-position: right 0.5rem center;
+      background-repeat: no-repeat;
+      background-size: 1.5em 1.5em;
+      padding-right: 2.5rem;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      appearance: none;
+      transition: background-color 0.3s ease, border-color 0.3s ease;
+    }
+    select:disabled {
+        background-color: #374151; /* bg-gray-700 */
+        opacity: 0.7;
+    }
+    .total-value-highlight {
+        transition: color 0.4s ease-in-out, transform 0.2s ease-in-out;
+    }
+    .nav-btn:disabled, .action-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+        background-color: #4b5563;
+    }
+    .calculated-field {
+        background-color: #1f2937; /* bg-gray-800 */
+        border: 1px solid #4b5563; /* border-gray-600 */
+        cursor: not-allowed;
+    }
+  </style>
+</head>
+<body class="bg-gray-900 flex items-center justify-center min-h-screen p-4">
+
+  <div class="w-full max-w-3xl bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-2xl border border-gray-700 overflow-hidden">
+    
+    <div class="p-6 md:p-8">
+        <div id="page-payment-planner">
+            <div class="text-center mb-8">
+              <h1 class="text-3xl md:text-4xl font-bold text-white tracking-tight">Ödeme Yöntemi Hesaplayıcı</h1>
+              <p class="text-lg text-gray-400 mt-2">Akıllı Ödeme Planlayıcı</p>
+            </div>
+
+            <div class="mb-6">
+                <label for="daireFiyatiInput" class="block mb-2 text-lg font-medium text-gray-200">Daire Peşin Fiyatı (TL)</label>
+                <input type="text" id="daireFiyatiInput" class="bg-gray-700 border border-gray-600 text-white text-lg rounded-lg focus:ring-cyan-500 focus:border-cyan-500 block w-full p-3" value="8000000">
+            </div>
+
+            <div class="space-y-4" id="payment-form">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label for="pesinatSelect" class="text-sm font-medium text-gray-300 mb-1">Peşinat</label>
+                    <select id="pesinatSelect" data-field="pesinat" class="bg-gray-700 border border-gray-600 text-white text-base rounded-lg focus:ring-cyan-500 focus:border-cyan-500 block w-full p-3"></select>
+                </div>
+                 <div>
+                    <label for="aylikTaksitVadeSelect" class="text-sm font-medium text-gray-300 mb-1">Aylık Ödeme Vadesi</label>
+                    <select id="aylikTaksitVadeSelect" data-field="aylikTaksitVade" class="bg-gray-700 border border-gray-600 text-white text-base rounded-lg focus:ring-cyan-500 focus:border-cyan-500 block w-full p-3"></select>
+                 </div>
+              </div>
+              <div>
+                 <label class="text-sm font-medium text-gray-300 mb-1">Aylık Ödeme Tutarı (Hesaplanan)</label>
+                 <input type="text" id="aylikTaksitInput" readonly class="calculated-field text-white text-base rounded-lg block w-full p-3 font-mono">
+              </div>
+            </div>
+            
+            <div id="interim-payments-container" class="mt-4 space-y-4"></div>
+
+            <div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-2 md:gap-4">
+                <button id="addInterimPaymentBtn" class="action-btn w-full bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-plus"></i> Ara Taksit Ekle
+                </button>
+            </div>
+            
+            <div class="pt-6 border-t border-gray-700/50 mt-6 space-y-4">
+              <div class="flex justify-between items-center bg-gray-900/50 p-3 rounded-lg">
+                  <span class="text-base font-medium text-gray-300">Daire Liste Fiyatı</span>
+                  <div id="daireListeFiyati" class="text-xl font-bold text-cyan-300">0 TL</div>
+              </div>
+              <div class="flex justify-between items-center bg-gray-900/50 p-3 rounded-lg">
+                  <span class="text-base font-medium text-gray-300">Hedef (Peşin Fiyat)</span>
+                  <div id="hedefFiyat" class="text-xl font-bold text-white">0 TL</div>
+              </div>
+              <div class="flex justify-between items-center bg-cyan-900/50 p-3 rounded-lg border border-cyan-500">
+                  <span class="text-base font-medium text-gray-300">İndirgenmiş Toplam</span>
+                  <div id="indirgenmisToplam" class="text-xl font-bold text-cyan-300 total-value-highlight">0 TL</div>
+              </div>
+               <div id="overpayment-warning" class="hidden text-center text-white text-base font-bold p-4 bg-red-800 rounded-lg flex items-center justify-center">
+                    <i class="fa-solid fa-exclamation-triangle mr-3"></i>
+                    <span>Gereğinden fazla ödeme yapmaktasınız.</span>
+                </div>
+              <div class="flex flex-col md:flex-row justify-between items-start md:items-center bg-gray-900/70 p-5 rounded-xl mt-2">
+                <div class="mb-2 md:mb-0">
+                    <span class="text-xl font-medium text-gray-300">Toplam Nominal Ödeme</span>
+                    <p class="text-sm text-gray-400">Tüm ödemelerinizin toplamı</p>
+                </div>
+                <div id="toplamSatisFiyati" class="text-4xl font-bold text-green-400 tracking-wider total-value-highlight">0 TL</div>
+              </div>
+            </div>
+
+            <div class="pt-4 mt-2 space-y-2">
+                 <button id="savePlanBtn" class="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3 px-4 rounded-lg transition-all duration-300 ease-in-out">
+                    Planı Kaydet
+                </button>
+                <button id="resetPlanBtn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition-all duration-300 ease-in-out">
+                    Yeni Plan Oluştur
+                </button>
+                <div class="flex items-center justify-center gap-4">
+                    <button id="prevScenarioBtn" class="nav-btn p-3 bg-gray-600 hover:bg-gray-700 rounded-lg"><i class="fa-solid fa-chevron-left"></i></button>
+                    <span id="scenarioIndicator" class="text-gray-300 font-semibold">Sayfa 1 / 1</span>
+                    <button id="nextScenarioBtn" class="nav-btn p-3 bg-gray-600 hover:bg-gray-700 rounded-lg"><i class="fa-solid fa-chevron-right"></i></button>
+                </div>
+            </div>
+        </div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      // --- CONSTANTS ---
+      const FAIZ_ORANI_AYLIK = 0.0262;
+      const DAİRE_FIYATI_LISTE_CARPANI = 0.54;
+
+      // --- HTML ELEMENTS ---
+      const daireFiyatiInput = document.getElementById("daireFiyatiInput");
+      const interimPaymentsContainer = document.getElementById("interim-payments-container");
+      const addCarTradeBtn = document.getElementById("addCarTradeBtn");
+      const addPropertyTradeBtn = document.getElementById("addPropertyTradeBtn");
+      const addInterimPaymentBtn = document.getElementById("addInterimPaymentBtn");
+      const savePlanBtn = document.getElementById("savePlanBtn");
+      const prevScenarioBtn = document.getElementById("prevScenarioBtn");
+      const nextScenarioBtn = document.getElementById("nextScenarioBtn");
+      const scenarioIndicator = document.getElementById("scenarioIndicator");
+
+      // --- DISPLAY ELEMENTS ---
+      const daireListeFiyatiDiv = document.getElementById("daireListeFiyati");
+      const hedefFiyatDiv = document.getElementById("hedefFiyat");
+      const indirgenmisToplamDiv = document.getElementById("indirgenmisToplam");
+      const toplamSatisFiyatiDiv = document.getElementById("toplamSatisFiyati");
+      const overpaymentWarning = document.getElementById('overpayment-warning');
+      
+      // --- FORM ELEMENTS ---
+      const allSelects = {
+          pesinat: document.getElementById('pesinatSelect'),
+          aylikTaksit: document.getElementById('aylikTaksitInput'),
+          aylikTaksitVade: document.getElementById('aylikTaksitVadeSelect'),
+      };
+      
+      // --- STATE VARIABLES ---
+      let allOptionsStore = {};
+      let interimSelects = {};
+      let scenarioHistory = [];
+      let currentScenarioIndex = -1;
+
+      // --- HELPER FUNCTIONS ---
+      const formatCurrency = (number) => new Intl.NumberFormat("tr-TR", { style: 'currency', currency: 'TRY', minimumFractionDigits: 0 }).format(Math.round(number));
+      const parseCurrency = (str) => parseFloat(String(str).replace(/[^0-9,-]+/g,"").replace(",", "."));
+      
+      // --- FINANCIAL CALCULATION FUNCTIONS ---
+      const calculatePV = (fv, months) => (months === 0) ? fv : fv / Math.pow(1 + FAIZ_ORANI_AYLIK, months);
+      const calculateAnnuityPV = (pmt, months) => (FAIZ_ORANI_AYLIK === 0) ? pmt * months : pmt * (1 - Math.pow(1 + FAIZ_ORANI_AYLIK, -months)) / FAIZ_ORANI_AYLIK;
+      const calculatePaymentFromPV = (pv, months) => (FAIZ_ORANI_AYLIK === 0 || months === 0) ? pv / (months || 1) : pv * FAIZ_ORANI_AYLIK / (1 - Math.pow(1 + FAIZ_ORANI_AYLIK, -months));
+
+      // --- NEW SCENARIO MANAGEMENT FUNCTIONS ---
+      const generateRandomScenario = () => {
+          const daireFiyati = parseCurrency(daireFiyatiInput.value) || 0;
+          if (daireFiyati === 0) return;
+
+          // Generate random peşinat (30-100% of daireFiyati, in 100,000 TL increments)
+          const minPesinat = Math.ceil(daireFiyati * 0.30 / 100000) * 100000;
+          const maxPesinat = Math.floor(daireFiyati / 100000) * 100000;
+          const pesinatStep = 100000;
+          const randomPesinat = Math.floor(Math.random() * ((maxPesinat - minPesinat) / pesinatStep + 1)) * pesinatStep + minPesinat;
+          
+          // Generate random aylık taksit vade (1-36 months)
+          const randomVade = Math.floor(Math.random() * 36) + 1;
+          
+          // Clear existing interim payments
+          clearInterimPayments();
+          
+          // Generate random number of interim payments (1-4)
+          const numInterimPayments = Math.floor(Math.random() * 4) + 1;
+          
+          // Set the random values
+          setSelectValue(allSelects.pesinat, randomPesinat);
+          allSelects.aylikTaksitVade.value = randomVade;
+          
+          // Add random interim payments
+          for (let i = 0; i < numInterimPayments; i++) {
+              const randomAmount = Math.floor(Math.random() * (daireFiyati * 0.3 / 100000)) * 100000 + 100000;
+              const randomInterimVade = Math.floor(Math.random() * 24) + 1;
+              addInterimPayment({
+                  amount: randomAmount,
+                  vade: randomInterimVade,
+                  type: 'interim'
+              });
+          }
+          
+          recalculateMonthlyPayment();
+      };
+
+      let scenarioRatios = null;
+
+      const snapshotCurrentRatios = () => {
+          const daireFiyati = parseCurrency(daireFiyatiInput.value) || 0;
+          if (daireFiyati === 0) return;
+
+          const pesinat = parseFloat(allSelects.pesinat.value) || 0;
+          const aylikTaksit = parseFloat(allSelects.aylikTaksit.dataset.value) || 0;
+          const aylikVade = parseInt(allSelects.aylikTaksitVade.value) || 0;
+
+          scenarioRatios = {
+              pesinatRatio: pesinat / daireFiyati,
+              aylikTaksitRatio: aylikTaksit / daireFiyati,
+              aylikVade: aylikVade,
+              interimPayments: Object.values(interimSelects).map(selects => ({
+                  amountRatio: parseFloat(selects.amount.value) / daireFiyati,
+                  vade: selects.type === 'interim' ? parseInt(selects.vade.value) : selects.vadeValue,
+                  type: selects.type
+              }))
+          };
+      };
+
+      const rebuildScenarioFromSnapshot = () => {
+          if (!scenarioRatios) return;
+
+          const daireFiyati = parseCurrency(daireFiyatiInput.value) || 0;
+          if (daireFiyati === 0) return;
+
+          // Rebuild peşinat
+          const newPesinat = Math.round(daireFiyati * scenarioRatios.pesinatRatio / 100000) * 100000;
+          setSelectValue(allSelects.pesinat, newPesinat);
+
+          // Rebuild aylık taksit vade
+          allSelects.aylikTaksitVade.value = scenarioRatios.aylikVade;
+
+          // Clear and rebuild interim payments
+          clearInterimPayments();
+          scenarioRatios.interimPayments.forEach(payment => {
+              const newAmount = Math.round(daireFiyati * payment.amountRatio / 100000) * 100000;
+              addInterimPayment({
+                  amount: newAmount,
+                  vade: payment.vade,
+                  type: payment.type
+              });
+          });
+
+          recalculateMonthlyPayment();
+      };
+
+      // --- CORE APPLICATION LOGIC ---
+      const generateAllPossibleOptions = () => {
+          const daireFiyati = parseCurrency(daireFiyatiInput.value) || 0;
+          if (daireFiyati === 0) return;
+          
+          const pesinatOptions = [];
+          const baslangicPesinati = daireFiyati * 0.30;
+          let currentPesinat = Math.ceil(baslangicPesinati / 100000) * 100000;
+          while (currentPesinat <= daireFiyati) {
+              pesinatOptions.push(currentPesinat);
+              currentPesinat += 100000;
+          }
+          if (pesinatOptions.length > 0 && pesinatOptions[pesinatOptions.length - 1] < daireFiyati) {
+              pesinatOptions.push(daireFiyati);
+          }
+          allOptionsStore.pesinat = pesinatOptions;
+
+          allOptionsStore.aylikTaksitVade = Array.from({length: 36}, (_, i) => i + 1);
+          
+          const araTaksitOptions = [];
+          let currentAraTaksit = 100000;
+          while (currentAraTaksit <= daireFiyati * 0.5) {
+              araTaksitOptions.push(currentAraTaksit);
+              currentAraTaksit += 100000;
+          }
+          allOptionsStore.araTaksit = araTaksitOptions;
+          allOptionsStore.araTaksitVade = Array.from({length: 24}, (_, i) => i + 1);
+      };
+
+      const populateSelect = (select, options, currentValue, formatter) => {
+          const currentValFloat = parseFloat(select.value);
+          select.innerHTML = '';
+          options.forEach(value => {
+              const text = formatter(value);
+              const option = new Option(text, value);
+              select.add(option);
+          });
+          if (currentValue !== null && options.includes(currentValue)) {
+              select.value = currentValue;
+          } else if(options.includes(currentValFloat)) {
+              select.value = currentValFloat;
+          } else if (options.length > 0) {
+              select.selectedIndex = 0;
+          } else {
+             select.innerHTML = '<option value="">Uygun Tutar Yok</option>';
+          }
+      };
+      
+      const setSelectValue = (select, value) => {
+        const options = Array.from(select.options).map(opt => parseFloat(opt.value));
+        const closestValue = options.reduce((prev, curr) => (Math.abs(curr - value) < Math.abs(prev - value) ? curr : prev), Infinity);
+        if (closestValue !== Infinity) {
+            select.value = closestValue;
+        }
+      };
+
+      const updateAllTradeInOptions = () => {
+          const pesinatValue = parseFloat(allSelects.pesinat.value) || 0;
+          const allTradeIns = Object.values(interimSelects).filter(s => s.type.includes('trade'));
+          if (allTradeIns.length === 0) return;
+
+          allTradeIns.forEach(currentTradeIn => {
+              let otherTradeInsValue = 0;
+              allTradeIns.forEach(otherTradeIn => {
+                  if (currentTradeIn !== otherTradeIn) {
+                      otherTradeInsValue += parseFloat(otherTradeIn.amount.value) || 0;
+                  }
+              });
+
+              const maxAllowed = pesinatValue - otherTradeInsValue;
+              const newAmountOptions = allOptionsStore.araTaksit.filter(opt => opt <= maxAllowed);
+              
+              populateSelect(currentTradeIn.amount, newAmountOptions, null, formatCurrency);
+          });
+      };
+      
+      const getRemainingPV = () => {
+          const targetPV = parseCurrency(daireFiyatiInput.value);
+          if (isNaN(targetPV)) return 0;
+          
+          let fixedPaymentsPV = 0;
+          const pesinatValue = parseFloat(allSelects.pesinat.value) || 0;
+          fixedPaymentsPV += pesinatValue;
+          
+          Object.values(interimSelects).forEach(selects => {
+              const amount = parseFloat(selects.amount.value);
+              const vade = selects.type === 'interim' ? parseInt(selects.vade.value) : selects.vadeValue;
+              if(!isNaN(amount) && !isNaN(vade)) {
+                fixedPaymentsPV += calculatePV(amount, vade);
+              }
+          });
+          
+          return targetPV - fixedPaymentsPV;
+      }
+      
+      const recalculateMonthlyPayment = () => {
+        const remainingPV = getRemainingPV();
+        const vade = parseInt(allSelects.aylikTaksitVade.value);
+
+        if (remainingPV > 0 && !isNaN(vade) && vade > 0) {
+            const requiredPayment = calculatePaymentFromPV(remainingPV, vade);
+            allSelects.aylikTaksit.dataset.value = requiredPayment;
+            allSelects.aylikTaksit.value = formatCurrency(requiredPayment);
+        } else {
+            allSelects.aylikTaksit.dataset.value = 0;
+            allSelects.aylikTaksit.value = formatCurrency(0);
+        }
+        updateDisplayValues();
+      };
+      
+      const addInterimPayment = (config) => {
+          const { amount = null, vade = null, type = 'interim' } = config;
+          const id = Date.now();
+          const isTradeIn = type === 'car_trade' || type === 'property_trade';
+          
+          const typeLabels = {
+              interim: `Ara Ödeme ${Object.keys(interimSelects).filter(k => interimSelects[k].type === 'interim').length + 1}`,
+              car_trade: 'Araç Takası',
+              property_trade: 'Gayrimenkul Takası'
+          };
+          const label = typeLabels[type];
+
+          const newPaymentDiv = document.createElement('div');
+          newPaymentDiv.className = 'p-4 bg-gray-700/50 rounded-lg';
+          newPaymentDiv.id = `interim-row-${id}`;
+          newPaymentDiv.dataset.type = type;
+
+          const rightColumnHTML = isTradeIn
+            ? `<div class="p-3 text-xs text-gray-400 flex items-center justify-center border border-dashed border-gray-600 rounded-lg h-full text-center">Takaslar toplamı, peşinat tutarını geçemez.</div>`
+            : `<select id="araTaksitVade${id}" class="bg-gray-700 border border-gray-600 text-white text-base rounded-lg focus:ring-cyan-500 focus:border-cyan-500 block w-full p-3"></select>`;
+
+          newPaymentDiv.innerHTML = `
+              <div class="flex justify-between items-center mb-2">
+                  <label class="text-sm font-medium text-gray-300">${label}</label>
+                  <button class="remove-interim-btn text-red-400 hover:text-red-300" data-id="${id}"><i class="fa-solid fa-trash-can"></i></button>
+              </div>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <select id="araTaksitAmount${id}" class="bg-gray-700 border border-gray-600 text-white text-base rounded-lg focus:ring-cyan-500 focus:border-cyan-500 block w-full p-3"></select>
+                  ${rightColumnHTML}
+              </div>
+          `;
+          interimPaymentsContainer.appendChild(newPaymentDiv);
+          
+          const amountSelect = document.getElementById(`araTaksitAmount${id}`);
+          const vadeSelect = isTradeIn ? null : document.getElementById(`araTaksitVade${id}`);
+
+          interimSelects[id] = { 
+              amount: amountSelect, 
+              vade: vadeSelect,
+              vadeValue: isTradeIn ? vade : null,
+              type: type,
+              row: newPaymentDiv
+          };
+
+          if (isTradeIn) {
+             updateAllTradeInOptions();
+             if(amount) setSelectValue(amountSelect, amount);
+          } else {
+             populateSelect(amountSelect, allOptionsStore.araTaksit, amount, formatCurrency);
+             populateSelect(vadeSelect, allOptionsStore.araTaksitVade, vade, (val) => `${val} Ay`);
+             if(amount) setSelectValue(amountSelect, amount);
+          }
+          
+          if (isTradeIn) {
+              amountSelect.addEventListener('change', updateAllTradeInOptions);
+          }
+          amountSelect.addEventListener('change', recalculateMonthlyPayment);
+
+          if (!isTradeIn && vadeSelect) {
+             vadeSelect.addEventListener('change', recalculateMonthlyPayment);
+          }
+          
+          newPaymentDiv.querySelector('.remove-interim-btn').addEventListener('click', removeInterimPayment);
+          recalculateMonthlyPayment();
+      };
+      
+      const removeInterimPayment = (e) => {
+          const id = e.currentTarget.dataset.id;
+          const paymentType = interimSelects[id].type;
+          
+          delete interimSelects[id];
+          document.getElementById(`interim-row-${id}`).remove();
+
+          if (paymentType === 'car_trade') addCarTradeBtn.disabled = false;
+          if (paymentType === 'property_trade') addPropertyTradeBtn.disabled = false;
+
+          updateAllTradeInOptions();
+          recalculateMonthlyPayment();
+      };
+
+      const clearInterimPayments = () => {
+        interimPaymentsContainer.innerHTML = '';
+        interimSelects = {};
+        addCarTradeBtn.disabled = false;
+        addPropertyTradeBtn.disabled = false;
+      }
+      
+      const updateDisplayValues = () => {
+            const daireFiyati = parseCurrency(daireFiyatiInput.value) || 0;
+            daireListeFiyatiDiv.textContent = formatCurrency(daireFiyati / DAİRE_FIYATI_LISTE_CARPANI);
+            hedefFiyatDiv.textContent = formatCurrency(daireFiyati);
+
+            let nominalTotal = 0;
+            let discountedTotal = 0;
+
+            const pesinat = parseFloat(allSelects.pesinat.value) || 0;
+            if(!isNaN(pesinat)) {
+                nominalTotal += pesinat;
+                discountedTotal += pesinat;
+            }
+
+            const aylikTaksit = parseFloat(allSelects.aylikTaksit.dataset.value) || 0;
+            const aylikVade = parseInt(allSelects.aylikTaksitVade.value);
+            if (!isNaN(aylikTaksit) && !isNaN(aylikVade)) {
+                nominalTotal += aylikTaksit * aylikVade;
+                discountedTotal += calculateAnnuityPV(aylikTaksit, aylikVade);
+            }
+            
+            Object.values(interimSelects).forEach(selects => {
+                const amount = parseFloat(selects.amount.value);
+                const vade = selects.type === 'interim' ? parseInt(selects.vade.value) : selects.vadeValue;
+                if (!isNaN(amount) && !isNaN(vade)) {
+                   nominalTotal += amount;
+                   discountedTotal += calculatePV(amount, vade);
+                }
+            });
+            
+            indirgenmisToplamDiv.textContent = formatCurrency(discountedTotal);
+            toplamSatisFiyatiDiv.textContent = formatCurrency(nominalTotal);
+            
+            // Overpayment check
+            if (daireFiyati > 0 && discountedTotal > daireFiyati + 1) { // Add a small tolerance (e.g., 1 TL) for floating point inaccuracies
+                overpaymentWarning.classList.remove('hidden');
+                indirgenmisToplamDiv.classList.remove('text-cyan-300');
+                indirgenmisToplamDiv.classList.add('text-red-500');
+            } else {
+                overpaymentWarning.classList.add('hidden');
+                indirgenmisToplamDiv.classList.remove('text-red-500');
+                indirgenmisToplamDiv.classList.add('text-cyan-300');
+            }
+            
+            [indirgenmisToplamDiv, toplamSatisFiyatiDiv].forEach(el => {
+                el.classList.add('scale-105');
+                setTimeout(() => el.classList.remove('scale-105'), 400);
+            });
+      };
+      
+      const getCurrentPlanState = () => ({
+        pesinat: parseFloat(allSelects.pesinat.value),
+        aylikTaksitVade: parseInt(allSelects.aylikTaksitVade.value),
+        interimPayments: Object.values(interimSelects).map(selects => ({
+            amount: parseFloat(selects.amount.value),
+            vade: selects.type === 'interim' ? parseInt(selects.vade.value) : selects.vadeValue,
+            type: selects.type
+        }))
+      });
+
+      const loadPlanState = (plan) => {
+          setSelectValue(allSelects.pesinat, plan.pesinat);
+          allSelects.aylikTaksitVade.value = plan.aylikTaksitVade;
+          
+          clearInterimPayments();
+          plan.interimPayments.forEach(p => {
+              if (p.type === 'car_trade') addCarTradeBtn.disabled = true;
+              if (p.type === 'property_trade') addPropertyTradeBtn.disabled = true;
+
+              addInterimPayment({
+                  amount: p.amount,
+                  vade: p.vade,
+                  type: p.type
+              });
+          });
+          
+          recalculateMonthlyPayment();
+      };
+      
+      const updateScenarioNav = () => {
+          scenarioIndicator.textContent = `Sayfa ${currentScenarioIndex + 1} / ${scenarioHistory.length}`;
+          prevScenarioBtn.disabled = currentScenarioIndex <= 0;
+          nextScenarioBtn.disabled = currentScenarioIndex >= scenarioHistory.length - 1;
+      };
+
+      const generateSpecificFirstScenario = () => {
+        clearInterimPayments();
+        
+        const daireFiyati = parseCurrency(daireFiyatiInput.value);
+        const pesinatValue = daireFiyati * 0.30;
+        setSelectValue(allSelects.pesinat, pesinatValue);
+        
+        allSelects.aylikTaksitVade.value = 36;
+        
+        recalculateMonthlyPayment();
+
+        scenarioHistory = [getCurrentPlanState()];
+        currentScenarioIndex = 0;
+        updateScenarioNav();
+      };
+      
+      const savePlan = () => {
+          const currentState = getCurrentPlanState();
+          
+          // If we're not at the end of the history, remove future scenarios
+          if (currentScenarioIndex < scenarioHistory.length - 1) {
+              scenarioHistory = scenarioHistory.slice(0, currentScenarioIndex + 1);
+          }
+          
+          // Add the new scenario
+          scenarioHistory.push(currentState);
+          currentScenarioIndex = scenarioHistory.length - 1;
+          
+          // Update the navigation
+          updateScenarioNav();
+          
+          // Show a brief visual feedback
+          savePlanBtn.classList.add('bg-cyan-500');
+          setTimeout(() => {
+              savePlanBtn.classList.remove('bg-cyan-500');
+          }, 200);
+
+          // Reset the form to initial state
+          daireFiyatiInput.value = "8000000";
+          generateAllPossibleOptions();
+          populateSelect(allSelects.pesinat, allOptionsStore.pesinat, null, formatCurrency);
+          populateSelect(allSelects.aylikTaksitVade, allOptionsStore.aylikTaksitVade, 36, (val) => `${val} Ay`);
+          
+          // Clear all interim payments
+          clearInterimPayments();
+          
+          // Generate new random scenario
+          generateRandomScenario();
+          
+          // Take new snapshot
+          snapshotCurrentRatios();
+          
+          // Update all calculations
+          recalculateMonthlyPayment();
+          updateDisplayValues();
+      };
+
+      const initializeApp = () => {
+          generateAllPossibleOptions();
+          populateSelect(allSelects.pesinat, allOptionsStore.pesinat, null, formatCurrency);
+          populateSelect(allSelects.aylikTaksitVade, allOptionsStore.aylikTaksitVade, 36, (val) => `${val} Ay`);
+          
+          // Generate initial random scenario
+          generateRandomScenario();
+          
+          // Take snapshot of the initial ratios
+          snapshotCurrentRatios();
+          
+          // Add event listener for peşinat changes to rebuild scenario
+          allSelects.pesinat.addEventListener('change', () => {
+              rebuildScenarioFromSnapshot();
+              updateAllTradeInOptions();
+              recalculateMonthlyPayment();
+          });
+      }
+
+      // --- EVENT LISTENERS ---
+      daireFiyatiInput.addEventListener('change', () => {
+          generateAllPossibleOptions();
+          populateSelect(allSelects.pesinat, allOptionsStore.pesinat, null, formatCurrency);
+          populateSelect(allSelects.aylikTaksitVade, allOptionsStore.aylikTaksitVade, 36, (val) => `${val} Ay`);
+          recalculateMonthlyPayment();
+          updateDisplayValues();
+      });
+
+      savePlanBtn.addEventListener('click', savePlan);
+      
+      // Add reset button functionality
+      document.getElementById('resetPlanBtn').addEventListener('click', () => {
+          // Simply refresh the page
+          window.location.reload();
+      });
+      
+      addInterimPaymentBtn.addEventListener('click', () => {
+          addInterimPayment({ type: 'interim' });
+      });
+      
+      prevScenarioBtn.addEventListener('click', () => {
+          if (currentScenarioIndex > 0) {
+              currentScenarioIndex--;
+              loadPlanState(scenarioHistory[currentScenarioIndex]);
+              updateScenarioNav();
+          }
+      });
+
+      nextScenarioBtn.addEventListener('click', () => {
+          if (currentScenarioIndex < scenarioHistory.length - 1) {
+              currentScenarioIndex++;
+              loadPlanState(scenarioHistory[currentScenarioIndex]);
+              updateScenarioNav();
+          }
+      });
+      
+      allSelects.pesinat.addEventListener('change', () => {
+          updateAllTradeInOptions();
+          recalculateMonthlyPayment();
+          updateDisplayValues();
+      });
+
+      allSelects.aylikTaksitVade.addEventListener('change', () => {
+          recalculateMonthlyPayment();
+          updateDisplayValues();
+      });
+
+      // Add input event listeners for real-time updates
+      daireFiyatiInput.addEventListener('input', () => {
+          generateAllPossibleOptions();
+          populateSelect(allSelects.pesinat, allOptionsStore.pesinat, null, formatCurrency);
+          populateSelect(allSelects.aylikTaksitVade, allOptionsStore.aylikTaksitVade, 36, (val) => `${val} Ay`);
+          recalculateMonthlyPayment();
+          updateDisplayValues();
+      });
+
+      // Initialize the app
+      initializeApp();
+    });
+  </script>
+</body>
+</html>

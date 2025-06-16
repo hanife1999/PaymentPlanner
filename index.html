@@ -9,6 +9,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.plugin.addfont.min.js"></script>
   <style>
     body {
       font-family: 'Inter', sans-serif;
@@ -79,6 +82,12 @@
             <div id="interim-payments-container" class="mt-4 space-y-4"></div>
 
             <div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-2 md:gap-4">
+                <button id="addCarTradeBtn" class="action-btn w-full bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-plus"></i> Araç Takası
+                </button>
+                <button id="addPropertyTradeBtn" class="action-btn w-full bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-plus"></i> Mülk Takası
+                </button>
                 <button id="addInterimPaymentBtn" class="action-btn w-full bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2">
                     <i class="fa-solid fa-plus"></i> Ara Taksit Ekle
                 </button>
@@ -113,6 +122,9 @@
             <div class="pt-4 mt-2 space-y-2">
                  <button id="savePlanBtn" class="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3 px-4 rounded-lg transition-all duration-300 ease-in-out">
                     Planı Kaydet
+                </button>
+                <button id="exportPdfBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-all duration-300 ease-in-out">
+                    PDF Olarak İndir
                 </button>
                 <button id="resetPlanBtn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition-all duration-300 ease-in-out">
                     Yeni Plan Oluştur
@@ -388,7 +400,7 @@
           newPaymentDiv.dataset.type = type;
 
           const rightColumnHTML = isTradeIn
-            ? `<div class="p-3 text-xs text-gray-400 flex items-center justify-center border border-dashed border-gray-600 rounded-lg h-full text-center">Takaslar toplamı, peşinat tutarını geçemez.</div>`
+            ? `<select id="araTaksitVade${id}" class="bg-gray-700 border border-gray-600 text-white text-base rounded-lg focus:ring-cyan-500 focus:border-cyan-500 block w-full p-3"></select>`
             : `<select id="araTaksitVade${id}" class="bg-gray-700 border border-gray-600 text-white text-base rounded-lg focus:ring-cyan-500 focus:border-cyan-500 block w-full p-3"></select>`;
 
           newPaymentDiv.innerHTML = `
@@ -404,12 +416,11 @@
           interimPaymentsContainer.appendChild(newPaymentDiv);
           
           const amountSelect = document.getElementById(`araTaksitAmount${id}`);
-          const vadeSelect = isTradeIn ? null : document.getElementById(`araTaksitVade${id}`);
+          const vadeSelect = document.getElementById(`araTaksitVade${id}`);
 
           interimSelects[id] = { 
               amount: amountSelect, 
               vade: vadeSelect,
-              vadeValue: isTradeIn ? vade : null,
               type: type,
               row: newPaymentDiv
           };
@@ -417,6 +428,7 @@
           if (isTradeIn) {
              updateAllTradeInOptions();
              if(amount) setSelectValue(amountSelect, amount);
+             populateSelect(vadeSelect, allOptionsStore.araTaksitVade, vade, (val) => `${val} Ay`);
           } else {
              populateSelect(amountSelect, allOptionsStore.araTaksit, amount, formatCurrency);
              populateSelect(vadeSelect, allOptionsStore.araTaksitVade, vade, (val) => `${val} Ay`);
@@ -428,9 +440,7 @@
           }
           amountSelect.addEventListener('change', recalculateMonthlyPayment);
 
-          if (!isTradeIn && vadeSelect) {
-             vadeSelect.addEventListener('change', recalculateMonthlyPayment);
-          }
+          vadeSelect.addEventListener('change', recalculateMonthlyPayment);
           
           newPaymentDiv.querySelector('.remove-interim-btn').addEventListener('click', removeInterimPayment);
           recalculateMonthlyPayment();
@@ -588,9 +598,6 @@
           // Clear all interim payments
           clearInterimPayments();
           
-          // Generate new random scenario
-          generateRandomScenario();
-          
           // Take new snapshot
           snapshotCurrentRatios();
           
@@ -599,13 +606,127 @@
           updateDisplayValues();
       };
 
+      const exportToPdf = () => {
+          // Initialize jsPDF
+          const { jsPDF } = window.jspdf;
+          const doc = new jsPDF();
+          
+          // Add title
+          doc.setFontSize(20);
+          doc.text('Ödeme Planları Raporu', 105, 20, { align: 'center' });
+          
+          // Add date
+          doc.setFontSize(12);
+          doc.text(`Oluşturulma Tarihi: ${new Date().toLocaleDateString('tr-TR')}`, 105, 30, { align: 'center' });
+          
+          let currentY = 45;
+          
+          // Iterate through all saved plans
+          scenarioHistory.forEach((plan, index) => {
+              // Add plan number and separator
+              doc.setFontSize(16);
+              doc.text(`Plan ${index + 1}`, 20, currentY);
+              currentY += 10;
+              
+              // Add property details
+              doc.setFontSize(14);
+              doc.text('Daire Bilgileri', 20, currentY);
+              currentY += 10;
+              
+              const daireFiyati = parseCurrency(daireFiyatiInput.value) || 0;
+              const daireListeFiyati = daireFiyati / DAİRE_FIYATI_LISTE_CARPANI;
+              
+              const propertyDetails = [
+                  ['Daire Liste Fiyatı', formatCurrency(daireListeFiyati)],
+                  ['Hedef (Peşin Fiyat)', formatCurrency(daireFiyati)]
+              ];
+              
+              doc.autoTable({
+                  startY: currentY,
+                  head: [['Özellik', 'Değer']],
+                  body: propertyDetails,
+                  theme: 'grid',
+                  headStyles: { fillColor: [41, 128, 185], textColor: 255 },
+                  styles: { fontSize: 10, cellPadding: 5 }
+              });
+              
+              currentY = doc.lastAutoTable.finalY + 15;
+              
+              // Add payment details
+              doc.setFontSize(14);
+              doc.text('Ödeme Detayları', 20, currentY);
+              currentY += 10;
+              
+              const paymentDetails = [];
+              
+              // Add peşinat
+              paymentDetails.push(['Peşinat', formatCurrency(plan.pesinat)]);
+              
+              // Add monthly payment
+              const aylikTaksit = calculatePaymentFromPV(
+                  daireFiyati - plan.pesinat - plan.interimPayments.reduce((sum, p) => sum + calculatePV(p.amount, p.vade), 0),
+                  plan.aylikTaksitVade
+              );
+              paymentDetails.push(['Aylık Taksit', `${formatCurrency(aylikTaksit)} (${plan.aylikTaksitVade} Ay)`]);
+              
+              // Add interim payments
+              plan.interimPayments.forEach(payment => {
+                  const type = payment.type === 'car_trade' ? 'Araç Takası' : 
+                              payment.type === 'property_trade' ? 'Mülk Takası' : 'Ara Ödeme';
+                  paymentDetails.push([type, `${formatCurrency(payment.amount)} (${payment.vade} Ay)`]);
+              });
+              
+              // Calculate totals
+              const nominalTotal = plan.pesinat + 
+                                 (aylikTaksit * plan.aylikTaksitVade) + 
+                                 plan.interimPayments.reduce((sum, p) => sum + p.amount, 0);
+                                 
+              const discountedTotal = plan.pesinat + 
+                                    calculateAnnuityPV(aylikTaksit, plan.aylikTaksitVade) + 
+                                    plan.interimPayments.reduce((sum, p) => sum + calculatePV(p.amount, p.vade), 0);
+              
+              paymentDetails.push(['Toplam Nominal Ödeme', formatCurrency(nominalTotal)]);
+              paymentDetails.push(['İndirgenmiş Toplam', formatCurrency(discountedTotal)]);
+              
+              doc.autoTable({
+                  startY: currentY,
+                  head: [['Ödeme Türü', 'Tutar']],
+                  body: paymentDetails,
+                  theme: 'grid',
+                  headStyles: { fillColor: [41, 128, 185], textColor: 255 },
+                  styles: { fontSize: 10, cellPadding: 5 }
+              });
+              
+              currentY = doc.lastAutoTable.finalY + 20;
+              
+              // Add page break if not the last plan
+              if (index < scenarioHistory.length - 1) {
+                  doc.addPage();
+                  currentY = 20;
+              }
+          });
+          
+          // Add footer to all pages
+          const pageCount = doc.internal.getNumberOfPages();
+          for (let i = 1; i <= pageCount; i++) {
+              doc.setPage(i);
+              doc.setFontSize(10);
+              doc.text(
+                  `Sayfa ${i} / ${pageCount}`,
+                  doc.internal.pageSize.width / 2,
+                  doc.internal.pageSize.height - 10,
+                  { align: 'center' }
+              );
+          }
+          
+          // Save the PDF
+          doc.save('odeme-planlari.pdf');
+      };
+
       const initializeApp = () => {
           generateAllPossibleOptions();
           populateSelect(allSelects.pesinat, allOptionsStore.pesinat, null, formatCurrency);
           populateSelect(allSelects.aylikTaksitVade, allOptionsStore.aylikTaksitVade, 36, (val) => `${val} Ay`);
-          
-          // Generate initial random scenario
-          generateRandomScenario();
           
           // Take snapshot of the initial ratios
           snapshotCurrentRatios();
@@ -635,7 +756,16 @@
           window.location.reload();
       });
       
-      addInterimPaymentBtn.addEventListener('click', () => {
+      // Add event listeners for different payment types
+      document.getElementById('addCarTradeBtn').addEventListener('click', () => {
+          addInterimPayment({ type: 'car_trade' });
+      });
+
+      document.getElementById('addPropertyTradeBtn').addEventListener('click', () => {
+          addInterimPayment({ type: 'property_trade' });
+      });
+
+      document.getElementById('addInterimPaymentBtn').addEventListener('click', () => {
           addInterimPayment({ type: 'interim' });
       });
       
@@ -673,6 +803,26 @@
           populateSelect(allSelects.aylikTaksitVade, allOptionsStore.aylikTaksitVade, 36, (val) => `${val} Ay`);
           recalculateMonthlyPayment();
           updateDisplayValues();
+      });
+
+      // Add event listener for PDF export
+      document.getElementById('exportPdfBtn').addEventListener('click', () => {
+          if (typeof window.jspdf === 'undefined') {
+              alert('PDF oluşturma kütüphanesi yüklenemedi. Lütfen sayfayı yenileyip tekrar deneyin.');
+              return;
+          }
+
+          if (scenarioHistory.length === 0) {
+              alert('Kaydedilmiş plan bulunamadı. Lütfen önce bir plan kaydedin.');
+              return;
+          }
+
+          try {
+              exportToPdf();
+          } catch (error) {
+              console.error('PDF oluşturma hatası:', error);
+              alert('PDF oluşturulurken bir hata oluştu. Lütfen tekrar deneyin.');
+          }
       });
 
       // Initialize the app
